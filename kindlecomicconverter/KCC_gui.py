@@ -286,6 +286,39 @@ class WorkerThread(QtCore.QThread):
             if GUI.jobList.item(i).icon().isNull():
                 currentJobs.append(str(GUI.jobList.item(i).text()))
         GUI.jobList.clear()
+
+        #NEEDS TO BE CBR FILENAME (SO IT CAN BE EXTRACTED)
+        if GUI.outputMerge.isChecked():
+            import zipfile
+            from tempfile import TemporaryDirectory
+
+            MW.addMessage.emit('Merging all files...', 'info', False)
+            GUI.progress.content = 'Merging all files'
+            
+            zf = zipfile.ZipFile(currentJobs[0].split('.', 1)[0] + "-MERGED.cbz", "w")
+
+            #we should join cbz before converting
+            with TemporaryDirectory('', 'KCC-') as workdir:
+                for job in currentJobs:
+
+                    #unzip all in tmp folder
+                    name = os.path.splitext(os.path.basename(job))[0]
+                    extracted_dir = workdir + "/" + name
+
+                    with zipfile.ZipFile(job, 'r') as zip_ref:
+                        zip_ref.extractall(extracted_dir)
+
+                    for dirname, subdirs, files in os.walk(extracted_dir):
+                        for filename in files:
+                            p = os.path.join(dirname, filename)
+                            arcname = os.path.relpath(p, start=workdir)
+                            zf.write(p, arcname=arcname)#change arcname to remove tmp folder (relative path)
+            zf.close()
+
+            currentJobs = [zf.filename]
+
+            GUI.progress.content = ''
+
         for job in currentJobs:
             sleep(0.5)
             if not self.conversionAlive:
